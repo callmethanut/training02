@@ -1,0 +1,20 @@
+# All scraper / dashboard outputs live under each method's output/ folder.
+# Keep the code tracked, keep generated artifacts out of git.
+output/
+**/output/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
