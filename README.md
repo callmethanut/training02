@@ -1,21 +1,20 @@
-# Shipping Schedule Scrapers
+# Heung-A Line Schedule Scraper
 
-Two independent methods for pulling container-sailing schedules off Korean
-carrier e-services and turning them into a browsable HTML dashboard.
+Scrapes container-sailing schedules from Heung-A Line's e-service
+(`ebiz.heungaline.com`) into CSV files, then renders them as a single
+self-contained HTML dashboard.
 
-| Method | Carrier | Approach | Speed | Fragility |
-|--------|---------|----------|-------|-----------|
-| **Method01-Chrome** | Heung-A Line (`ebiz.heungaline.com`) | Direct HTTP with `requests` — reverse-engineered the form POST | Fast (seconds per month) | Low (no browser to maintain) |
-| **Method02-Code** | Sinokor (`ebiz.sinokor.co.kr`) | Real Chromium via Playwright — types into the search form and reads the rendered table | Slow (~30 s per route) | Medium (breaks if the site's CSS selectors change) |
+Direct HTTP with `requests` — no browser automation, no login, no API
+key. Fast (seconds per month) and low-maintenance.
 
-Both write their outputs into `<method-folder>/output/`, which is gitignored.
+Outputs land in `Method01-Chrome/output/`, which is gitignored.
 
 ---
 
-## Prerequisites (both methods)
+## Prerequisites
 
-- **Python 3.10 or newer** (Method02 uses `X | None` union syntax).
-- **Git** to clone the repo.
+- **Python 3.8 or newer**
+- **Git** to clone the repo
 
 Check yours:
 ```
@@ -24,97 +23,106 @@ python --version
 
 ---
 
-## Method01-Chrome — Heung-A Line (requests-based)
+## Install
 
-### Install
 ```
-cd Method01-Chrome
-pip install -r requirements.txt
+pip install -r Method01-Chrome\requirements.txt
 ```
 
-### Run the scraper
-```
-# One month
-python heunga_schedule_scraper.py --month 2026-01
-
-# Range of months
-python heunga_schedule_scraper.py --start 2026-01 --end 2026-06
-
-# Different route (Busan -> Laem Chabang, inbound view)
-python heunga_schedule_scraper.py --pol KRPUS --pod THLCH --direction I \
-    --start 2026-01 --end 2026-03 --output output/busan_lch_inbound.csv
-```
-
-Every CSV lands in `Method01-Chrome/output/`.
-
-### Build the dashboard
-```
-python heunga_dashboard.py
-```
-
-Reads every CSV in `output/`, dedupes across files, and writes
-`output/dashboard.html` — one self-contained HTML file (Chart.js from CDN,
-no build step). Open it in any browser.
+Only one dependency: `requests`.
 
 ---
 
-## Method02-Code — Sinokor (Playwright-based)
+## Scrape
 
-### Install
+All commands below assume you're at the repo root (`E:\training02`).
+
 ```
-cd Method02-Code
-pip install -r requirements.txt
-python -m playwright install chromium
-```
+# Current month, default route (Laem Chabang -> Busan, outbound)
+python Method01-Chrome\heunga_schedule_scraper.py
 
-The second command downloads the ~150 MB Chromium binary Playwright drives.
-It only needs to happen once per machine.
+# Single specific month
+python Method01-Chrome\heunga_schedule_scraper.py --month 2026-02
 
-### Run the scraper
-```
-# One route per --routes entry. Names are matched against the site's
-# own autocomplete, so full port names are safest.
-python daily_schedule_scraper.py \
-    --routes "LAEM CHABANG->BUSAN" "BANGKOK->BUSAN"
-```
+# Month range (recommended for a real dataset)
+python Method01-Chrome\heunga_schedule_scraper.py --start 2026-01 --end 2026-06
 
-Each route produces one `.xlsx` in `Method02-Code/output/schedule-daily/`,
-timestamped with today's date so daily runs stack up. If a step times out,
-a screenshot lands in `output/schedule-daily/_errors/` and the script moves
-on to the next route.
+# Non-contiguous months
+python Method01-Chrome\heunga_schedule_scraper.py --months 2026-01 2026-03 2026-06
 
-### Build the dashboards
-```
-# Interactive HTML dashboard (open in browser)
-python build_dashboard_html.py
+# Different route: Busan -> Laem Chabang, inbound view
+python Method01-Chrome\heunga_schedule_scraper.py --pol KRPUS --pod THLCH --direction I --start 2026-01 --end 2026-03
 
-# Excel workbook with charts
-python build_dashboard.py
+# Custom output filename
+python Method01-Chrome\heunga_schedule_scraper.py --start 2026-01 --end 2026-06 --output Method01-Chrome\output\lch_pus_h1.csv
+
+# Be gentler on the server (3 s between month requests)
+python Method01-Chrome\heunga_schedule_scraper.py --start 2026-01 --end 2026-12 --delay 3
 ```
 
-Both read every `.xlsx` in `output/schedule-daily/` and write into
-`Method02-Code/output/`.
+### Flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--pol` | `THLCH` | Origin port UN/LOCODE |
+| `--pod` | `KRPUS` | Destination port UN/LOCODE |
+| `--direction` | `O` | `O` = outbound/ETD, `I` = inbound/ETA |
+| `--month` | current month | Scrape one month |
+| `--months` | — | Scrape a list of months |
+| `--start` + `--end` | — | Scrape a contiguous range |
+| `--output` | `output/heunga_schedule.csv` | CSV path |
+| `--delay` | `1.0` | Seconds between month requests |
+
+**Finding port codes:** open `https://ebiz.heungaline.com/Schedule`, pick
+the port in the origin/destination boxes, then read the `pol`/`pod`
+hidden input values in dev tools.
+
+---
+
+## Build the dashboard
+
+```
+# Combine every CSV in output/ into output/dashboard.html
+python Method01-Chrome\heunga_dashboard.py
+
+# Only specific files
+python Method01-Chrome\heunga_dashboard.py --files Method01-Chrome\output\lch_pus_h1.csv --output Method01-Chrome\output\h1_dashboard.html
+```
+
+Open the resulting HTML in a browser (double-click the file in Explorer).
+
+Dashboard includes: KPI cards, sailings-per-month bars, per-service
+breakdown, top-10 vessels, transit-time histogram, terminal breakdowns,
+and a filterable + sortable table. Uses Chart.js from CDN, no build
+step, no local server.
+
+---
+
+## Typical end-to-end run
+
+```
+pip install -r Method01-Chrome\requirements.txt
+python Method01-Chrome\heunga_schedule_scraper.py --start 2026-01 --end 2026-06
+python Method01-Chrome\heunga_dashboard.py
+```
+
+Open `Method01-Chrome\output\dashboard.html` in a browser.
 
 ---
 
 ## Notes for redistributing
 
-- The `output/` folders are **gitignored** — cloners get the code but not
+- The `output/` folder is **gitignored** — cloners get the code but not
   the previously-scraped data. They generate their own on first run.
-- All defaults are computed from each script's own location, so you can
-  run them from any working directory (repo root, method folder, or
-  elsewhere) and outputs still land in the right place.
-- Neither carrier requires login or API keys. Both scrapers use the public
-  web schedule pages as a real browser would.
+- All defaults are computed from the script's own location, so you can
+  run from any working directory (repo root, `Method01-Chrome\`, or
+  elsewhere) and outputs still land in `Method01-Chrome\output\`.
+- No login or API keys — uses the public web schedule page as a browser
+  would.
 
 ## Maintenance
 
-Method02's Playwright selectors were verified against the live Sinokor
-DOM on 2026-09-06. If Sinokor redesigns the schedule page, the selectors
-listed at the top of `daily_schedule_scraper.py` will need re-verifying
-against the new DOM.
-
-Method01 depends on the shape of the `var schedules = [...]` array
+The scraper depends on the shape of the `var schedules = [...]` array
 embedded in Heung-A's response HTML. If they switch to a JSON API or
 change the variable name, `SCHEDULES_START_RE` in
 `heunga_schedule_scraper.py` will need updating.
